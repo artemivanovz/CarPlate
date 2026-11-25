@@ -57,7 +57,7 @@ def cmd_headless(args, cfg) -> int:
     events.extend(pipeline.flush(last_ts))
     for ev in events:
         pos = f"{ev.media_pos:7.2f}с" if ev.media_pos is not None else ev.ts.strftime("%H:%M:%S")
-        print(f"[{pos}] #{ev.event_id} {ev.plate:<10} цвет={ev.color.name or '—':<12} "
+        print(f"[{pos}] #{ev.event_id} {ev.plate or '—':<10} цвет={ev.color.name or '—':<12} "
               f"→ {ev.decision.decision.upper():<6} | {'; '.join(ev.decision.reasons)}")
         for n, stage in enumerate(ev.decision.stages, 1):
             print(f"           этап {n}. {stage.line()}")
@@ -148,10 +148,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("ui", help="окно оператора (по умолчанию)")
     p.add_argument("--source", help="mp4-файл или RTSP-адрес")
+    p.add_argument("--plate-backend", choices=("ru_anpr", "fast_alpr"), help="OCR для этого запуска; конфигурация не меняется")
     p.set_defaults(func=cmd_ui)
 
     p = sub.add_parser("headless", help="обработка без интерфейса, вывод событий в консоль")
     p.add_argument("--source", help="mp4-файл или RTSP-адрес")
+    p.add_argument("--plate-backend", choices=("ru_anpr", "fast_alpr"), help="OCR для этого запуска; конфигурация не меняется")
     p.add_argument("--realtime", action="store_true", help="воспроизводить файл в реальном темпе")
     p.add_argument("--max-frames", type=int, default=0)
     p.set_defaults(func=cmd_headless)
@@ -189,6 +191,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     cfg = load_config(args.config)
+    if getattr(args, "plate_backend", None):
+        cfg.models.plate.backend = args.plate_backend
     # Под pythonw консоли нет: журнал уходит в файл, под python — как раньше в stderr.
     if sys.stderr is None:
         log_path = cfg.base_dir / "data" / "anprgate.log"

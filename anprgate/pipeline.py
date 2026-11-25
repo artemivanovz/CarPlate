@@ -169,7 +169,7 @@ class Pipeline:
             overlays.append(overlay)
 
         for state in self.book.pop_lost(frame.ts):
-            if not state.decided and state.votes:
+            if not state.decided:
                 event = self._finalize(state, frame.ts)
                 if event:
                     result.events.append(event)
@@ -185,7 +185,7 @@ class Pipeline:
         """Принимает решения по незавершённым трекам (конец видеофайла)."""
         events = []
         for state in list(self.book.tracks.values()):
-            if not state.decided and state.votes:
+            if not state.decided:
                 event = self._finalize(state, ts)
                 if event:
                     events.append(event)
@@ -198,6 +198,16 @@ class Pipeline:
         crop = image[cy1:cy2, cx1:cx2]
         if crop.size == 0:
             return None
+
+        # Retain a vehicle image even when OCR never produces an accepted vote.
+        previous = state.best_bbox or (0, 0, 0, 0)
+        previous_area = (previous[2] - previous[0]) * (previous[3] - previous[1])
+        area = (vbox[2] - vbox[0]) * (vbox[3] - vbox[1])
+        if not state.votes and (state.best_frame is None or area > previous_area):
+            vehicle_crop, _ = self._bounded_vehicle_crop(crop, None)
+            state.best_frame = image.copy()
+            state.best_vehicle_crop = vehicle_crop.copy()
+            state.best_bbox = vbox
 
         readings = [r for r in self.plate_reader.read(crop) if r.text]
         best = max(readings, key=lambda r: r.det_conf * r.ocr_conf, default=None)
@@ -224,26 +234,28 @@ class Pipeline:
         state.decided = True
         lead = state.leader()
         if lead is None:
-            return None
-        vote, count, share = lead
+            vote, count, share = PlateVote("", "", 0.0, False), 0, 0.0
+        else:
+            vote, count, share = lead
         state.decided_plate = vote.plate
 
-        last = self._last_decided.get(vote.plate)
+        last = self._last_decided.get(vote.plate) if vote.plate else None
         if last is not None and abs(ts - last) < self.cfg.processing.repeat_cooldown_sec:
             log.debug("Повтор номера %s в пределах интервала, событие не создаётся", vote.plate)
             state.decision = self._decided_tracks.get(state.track_id, "pending")
             return None
-        self._last_decided[vote.plate] = ts
+        if vote.plate:
+            self._last_decided[vote.plate] = ts
 
-        color = state.color()
+        color = state.color() if state.votes else ColorEstimate(None, None, "номер не распознан")
         state.decided_color = color.name
         vehicles = self.db.list_vehicles()
-        body = self._body_match(state, vote.plate, vehicles) if self.cfg.access.body_check else None
+        body = self._body_match(state, vote.plate, vehicles) if self.cfg.access.body_check and vote.plate else None
         decision = decide(vote.plate, vote.valid, color, vehicles, self.cfg.access, body)
         state.body_score = decision.body_score
-        if count < self.cfg.processing.min_votes:
+        if state.votes and count < self.cfg.processing.min_votes:
             decision.escalate(REVIEW, f"мало согласованных прочтений номера: {count}")
-        if share < self.cfg.processing.consensus:
+        if state.votes and share < self.cfg.processing.consensus:
             decision.escalate(REVIEW, f"недостаточное согласие по номеру: {share:.0%}")
         state.decision = decision.decision
         self._decided_tracks[state.track_id] = decision.decision
@@ -254,9 +266,9 @@ class Pipeline:
             ts=now,
             source=self.source_name,
             track_id=state.track_id,
-            plate_raw=vote.raw,
-            plate=vote.plate,
-            plate_conf=round(vote.conf, 4),
+            plate_raw=vote.raw or None,
+            plate=vote.plate or None,
+            plate_conf=round(vote.conf, 4) if state.votes else None,
             plate_valid=vote.valid,
             votes=len(state.votes),
             color_detected=color.name,
@@ -271,7 +283,7 @@ class Pipeline:
         )
         event_id = self.db.log_event(record)
         body_text = f", кузов={decision.body_score:.2f}" if decision.body_score is not None else ""
-        log.info("Событие #%d: %s, цвет=%s%s → %s (%s)", event_id, vote.plate, color.name,
+        log.info("Событие #%d: %s, цвет=%s%s → %s (%s)", event_id, vote.plate or "номер не распознан", color.name,
                  body_text, decision.decision, "; ".join(decision.reasons))
         return AccessEvent(
             event_id=event_id,

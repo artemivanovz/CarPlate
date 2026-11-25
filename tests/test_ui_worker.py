@@ -5,13 +5,14 @@ import sqlite3
 import threading
 import time
 from datetime import datetime
+from dataclasses import replace
 from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import numpy as np
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QLabel
 
 from anprgate.access import decide
 from anprgate.config import AppConfig
@@ -162,6 +163,26 @@ def test_close_during_model_loading_waits_for_worker_before_database_close(qapp,
             db.list_vehicles()
     finally:
         release.set()
+        window.worker.shutdown()
+        assert window.worker.wait(3000)
+        window.close()
+
+
+def test_unreadable_plate_is_visible_in_journal_and_event_card(qapp, context, monkeypatch):
+    cfg, db, event, _vid = context
+    color = ColorEstimate(None, None, "номер не распознан")
+    unreadable = replace(event, plate="", plate_raw="", plate_conf=0.0, plate_valid=False, votes=0,
+                         color=color, decision=decide(None, False, color, db.list_vehicles(), cfg.access))
+    monkeypatch.setattr(worker, "load_models", lambda cfg: models())
+    window = main_window.MainWindow(cfg, db)
+    try:
+        window._on_event(unreadable)
+        assert window.table.item(0, 1).text() == "не распознан"
+        assert window.table.item(0, 3).text() == "ОТКАЗ"
+        popup = window.popups[-1]
+        assert "номер не распознан" in popup.windowTitle()
+        assert "не распознан" in [label.text() for label in popup.findChildren(QLabel)]
+    finally:
         window.worker.shutdown()
         assert window.worker.wait(3000)
         window.close()

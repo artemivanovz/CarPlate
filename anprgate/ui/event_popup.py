@@ -41,7 +41,7 @@ class EventPopup(QDialog):
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
         self.event = event
         self.db = db
-        self.setWindowTitle(f"Событие #{event.event_id} — {event.plate}")
+        self.setWindowTitle(f"Событие #{event.event_id} — {event.plate or 'номер не распознан'}")
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setMinimumWidth(660)
 
@@ -52,7 +52,7 @@ class EventPopup(QDialog):
         banner.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
         banner.setStyleSheet(f"background:{color.name()};color:white;padding:10px;border-radius:6px;")
 
-        plate = QLabel(event.plate)
+        plate = QLabel(event.plate or "не распознан")
         plate.setAlignment(Qt.AlignmentFlag.AlignCenter)
         plate.setFont(QFont("Consolas", 26, QFont.Weight.Bold))
         plate.setStyleSheet("background:white;color:black;border:3px solid black;border-radius:6px;padding:4px 12px;")

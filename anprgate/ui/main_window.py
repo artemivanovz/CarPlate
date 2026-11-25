@@ -186,7 +186,7 @@ class MainWindow(QMainWindow):
             self.event_rows[eid] += 1
         self.event_rows[event.event_id] = 0
         when = f"{event.media_pos:.1f} с" if event.media_pos is not None else f"{event.ts:%H:%M:%S}"
-        values = (when, event.plate, event.color.name or "—", DECISION_TITLES[event.decision.decision], "")
+        values = (when, event.plate or "не распознан", event.color.name or "—", DECISION_TITLES[event.decision.decision], "")
         brush = QBrush(DECISION_COLORS[event.decision.decision].lighter(170))
         for col, value in enumerate(values):
             cell = QTableWidgetItem(value)

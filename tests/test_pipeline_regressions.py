@@ -1,6 +1,7 @@
 """Decisions and display coordinates must remain safe on every finalization path."""
 
 from types import SimpleNamespace
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -140,3 +141,65 @@ def test_truncated_bdy_header_is_not_interpreted_as_legacy_vector():
 def test_invalid_reference_cannot_be_saved(vectors):
     with pytest.raises(ValueError):
         pack_gallery(vectors)
+
+
+@pytest.mark.parametrize("finish", ["lost", "eof"])
+@pytest.mark.parametrize("confidence", [None, 0.2])
+def test_unreadable_vehicle_is_logged_with_image_and_denial(context, finish, confidence):
+    cfg, db = context
+    detector = Detector()
+
+    class Unreadable:
+        def read(self, crop):
+            return [] if confidence is None else [PlateReading((20, 70, 100, 95), 0.9, "А123ВС77", confidence)]
+
+    pipe = Pipeline(cfg, db, detector, Unreadable(), None, "test")
+    image = np.full((200, 200, 3), 70, np.uint8)
+    assert not pipe.process(Frame(0, 0.0, image)).events
+    if finish == "lost":
+        detector.visible = False
+        events = pipe.process(Frame(1, 4.0, image)).events
+    else:
+        events = pipe.flush(1.0)
+    assert len(events) == 1
+    event = events[0]
+    assert event.decision.decision == "deny"
+    assert event.decision.vehicle is None
+    assert event.decision.reasons == ["номер не распознан"]
+    assert event.plate == "" and event.votes == 0
+    assert event.vehicle_crop is not None and event.vehicle_crop.size
+    assert event.snapshot_path and Path(event.snapshot_path).is_file()
+    record = db.recent_events()[0]
+    assert record["plate"] is None and record["plate_conf"] is None
+    assert record["votes"] == 0 and record["decision"] == "deny"
+    assert not pipe.flush(5.0)
+
+
+def test_two_unreadable_tracks_are_not_merged_by_plate_cooldown(context):
+    cfg, db = context
+
+    class TwoVehicles:
+        def track(self, image):
+            return [VehicleDetection(track_id, (20, 20, 180, 180), "car", 0.9) for track_id in (1, 2)]
+
+    pipe = Pipeline(cfg, db, TwoVehicles(), SimpleNamespace(read=lambda crop: []), None, "test")
+    pipe.process(Frame(0, 0.0, np.zeros((200, 200, 3), np.uint8)))
+    events = pipe.flush(1.0)
+    assert {event.track_id for event in events} == {1, 2}
+    assert all(event.decision.decision == "deny" for event in events)
+    assert len(db.recent_events()) == 2
+
+
+def test_successful_ocr_replaces_the_unreadable_vehicle_image(context):
+    cfg, db = context
+    reader = SimpleNamespace(read=lambda crop: [])
+    pipe = Pipeline(cfg, db, Detector(), reader, None, "test")
+    pipe._body_match = lambda *args: BodyMatch(0.99)
+    pipe.process(Frame(0, 0.0, np.zeros((200, 200, 3), np.uint8)))
+    reader.read = lambda crop: [PlateReading((20, 70, 100, 95), 0.9, "А123ВС77", 0.9)]
+    image = np.full((200, 200, 3), 100, np.uint8)
+    for index in range(1, 4):
+        events = pipe.process(Frame(index, index / 10, image)).events
+    assert len(events) == 1 and events[0].decision.decision == "allow"
+    assert np.array_equal(events[0].frame, image)
+    assert events[0].vehicle_plate_bbox is not None
