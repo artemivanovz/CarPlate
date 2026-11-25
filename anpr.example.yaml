@@ -1,0 +1,70 @@
+# ANPR-Gate: конфигурация системы контроля проезда по номеру и цвету.
+# Пути относительные — от каталога этого файла.
+
+source:
+  # Путь к mp4 или RTSP-адрес. Учётные данные камер не храните в репозитории:
+  # используйте переменную окружения ANPR_SOURCE или параметр --source.
+  uri: "data/videos/barrier_entry_clean.mp4"
+  loop: false            # зацикливать видеофайл
+  realtime: true         # воспроизводить файл со скоростью исходного FPS
+
+paths:
+  db: data/anpr.sqlite3
+  snapshots: data/snapshots
+
+models:
+  vehicle:
+    weights: weights/yolo26n.pt  # COCO-модель Ultralytics; при отсутствии скачивается по имени файла
+    device: auto                 # auto | cpu | cuda:0
+    conf: 0.35
+    imgsz: 640
+    classes: [2, 3, 5, 7]        # car, motorcycle, bus, truck
+    tracker: bytetrack.yaml
+  plate:
+    # ru_anpr — модели для номеров РФ (YOLO26n + OCR по ГОСТ), weights/ru_plate;
+    # fast_alpr — универсальные ONNX-модели (MIT), для РФ заметно слабее на двухстрочных номерах.
+    backend: ru_anpr
+    weights_dir: weights/ru_plate
+    detector_model: yolo-v9-t-384-license-plate-end2end   # только для fast_alpr
+    ocr_model: cct-s-v2-global-model                      # только для fast_alpr
+    detector_conf: 0.3
+    device: auto                 # auto | cpu | cuda
+    min_plate_width_px: 40       # более мелкие номера не читаем
+  color:
+    backend: kmeans_lab
+    clusters: 4
+    night_brightness: 45         # средняя яркость (0..255), ниже — цвет не определяем
+    ir_channel_diff: 3.0         # средняя разница каналов RGB, ниже — кадр монохромный (ИК)
+    dark_majority: 0.6           # доля тёмных пикселей, начиная с которой кузов считается чёрным
+  body:
+    backend: shape               # контур кузова без краски; у каждой машины своя галерея, чужой кузов не усредняется
+    weights: weights/reid/veri_sbs_R50-ibn.pth
+    device: auto
+    input_size: [256, 256]
+    plate_pad: 0.3               # расширение маски номера, чтобы сеть не узнавала машину по табличке
+
+processing:
+  frame_interval: 2              # обрабатывать каждый N-й кадр
+  min_votes: 3                   # минимум прочтений номера для решения
+  max_votes: 12                  # после стольких прочтений решение принимается сразу
+  consensus: 0.5                 # доля голосов за лидирующий вариант
+  min_ocr_conf: 0.6              # прочтения с меньшей уверенностью OCR не голосуют
+  lost_after_sec: 1.5            # трек считается потерянным без обновлений
+  repeat_cooldown_sec: 15        # тот же номер повторно не решаем в течение интервала
+  max_frame_side: 1920           # 0 — не уменьшать кадр; экономит CPU на 2K/4K-камерах
+  max_crop_side: 640             # 0 — не уменьшать кроп ТС перед оценкой цвета и сверкой кузова
+
+access:
+  require_valid_format: true     # номер должен соответствовать формату РФ
+  fuzzy_max_distance: 1          # допустимое расстояние Левенштейна до номера из базы
+  fuzzy_decision: review         # в коде нечёткое совпадение всегда review; allow и deny не применяются
+  color_check: false          # ночной режим: цвет в решении не участвует
+  color_unknown_decision: review # allow | review | deny — если цвет определить нельзя
+  color_delta_e_max: 28          # допуск по ΔE (CIE76) к эталону цвета из базы
+  body_check: true
+  body_match: 0.80               # свой кроссовер в начале ролика 0.83–0.87 и на повторе 0.96; купе 0.84–0.87
+  body_alarm: 0.70               # седан с номером кроссовера в те же секунды 0.62–0.71
+
+ui:
+  popup_autoclose_sec: 0         # 0 — карточка события не закрывается сама
+  max_events_in_list: 200

@@ -1,0 +1,28 @@
+{
+  "models": [
+    {
+      "path": "weights/yolo26n.pt",
+      "required": true,
+      "size": 5544453,
+      "sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef"
+    },
+    {
+      "path": "weights/ru_plate/plate_detector.pt",
+      "required": true,
+      "size": 5381573,
+      "sha256": "0ee9b29633e38d1ca444124791036665bbb28a563e3cdae765a72c7fd3ea1312"
+    },
+    {
+      "path": "weights/ru_plate/plate_recognizer.pt",
+      "required": true,
+      "size": 8611055,
+      "sha256": "b115566f6894da055780959d1497f10ad0fd8b461a2ef533d08386cf135f6ac4"
+    },
+    {
+      "path": "weights/reid/veri_sbs_R50-ibn.pth",
+      "required": false,
+      "size": 198261759,
+      "sha256": "57fb9c17d88911ea64390bf5427f43511435e7f88f6eed9dbc969d4b611e53cd"
+    }
+  ]
+}

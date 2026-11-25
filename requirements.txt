@@ -1,0 +1,15 @@
+# SETUP.ps1/setup.sh сначала ставят выбранную CPU/CUDA сборку из официального индекса.
+torch==2.2.2
+torchvision==0.17.2
+numpy>=1.26,<2
+ultralytics>=8.4,<9
+fast-alpr[onnx-gpu]>=0.4
+onnxruntime-gpu==1.22.0
+nvidia-cudnn-cu12==9.*      # cuDNN 9 для ONNX Runtime; остальные CUDA-библиотеки берутся из torch
+opencv-python>=4.8,<4.12
+av>=14,<20
+PyQt6>=6.6,<7
+PyYAML>=6.0
+Pillow>=9.0
+lap>=0.5
+pytest>=8,<10
