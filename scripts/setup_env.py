@@ -13,6 +13,8 @@ import venv
 from pathlib import Path
 
 SUPPORTED = {(3, 11), (3, 12)}
+TORCH_VERSION = "2.5.1"
+VISION_VERSION = "0.20.1"
 PROJECT = Path(__file__).resolve().parents[1]
 
 
@@ -81,12 +83,12 @@ def install(project: Path, device: str) -> None:
         [str(python), "-c", "import sys; print('cp%d%d' % sys.version_info[:2])"],
         capture_output=True, text=True, check=True,
     ).stdout.strip()
-    torch_wheel = wheel_dir / f"torch-2.2.2+cu121-{tag}-{tag}-win_amd64.whl"
-    vision_wheel = wheel_dir / f"torchvision-0.17.2+cu121-{tag}-{tag}-win_amd64.whl"
+    torch_wheel = wheel_dir / f"torch-{TORCH_VERSION}+cu121-{tag}-{tag}-win_amd64.whl"
+    vision_wheel = wheel_dir / f"torchvision-{VISION_VERSION}+cu121-{tag}-{tag}-win_amd64.whl"
     if os.name == "nt" and selected == "cu121" and torch_wheel.is_file() and vision_wheel.is_file():
         run("-m", "pip", "install", str(torch_wheel), str(vision_wheel))
     else:
-        run("-m", "pip", "install", f"torch==2.2.2+{selected}", f"torchvision==0.17.2+{selected}",
+        run("-m", "pip", "install", f"torch=={TORCH_VERSION}+{selected}", f"torchvision=={VISION_VERSION}+{selected}",
             "--index-url", f"https://download.pytorch.org/whl/{selected}")
     run("-m", "pip", "install", "-r", str(project / "requirements.txt"))
     run("-m", "pip", "check")

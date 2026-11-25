@@ -17,8 +17,8 @@ log = logging.getLogger(__name__)
 
 
 def _expose_cuda_dlls() -> None:
-    """ONNX Runtime ищет CUDA через PATH. Берём CUDA 12 из torch и cuDNN 9 из nvidia-cudnn-cu12:
-    второй комплект cuBLAS/cuFFT в процессе ломает загрузку torch."""
+    """На Windows даём ONNX Runtime доступ к DLL CUDA/cuDNN 9 из torch 2.5.1.
+    Также поддерживаем уже установленные DLL из nvidia-cudnn-cu12."""
     import importlib.util
 
     dirs = []
@@ -36,10 +36,13 @@ def _expose_cuda_dlls() -> None:
 def onnx_providers(device: str) -> Sequence[str]:
     if device == "cpu":
         return ["CPUExecutionProvider"]
-    _expose_cuda_dlls()
+    import torch
     import onnxruntime as ort
 
-    if "CUDAExecutionProvider" in ort.get_available_providers():
+    if torch.cuda.is_available() and "CUDAExecutionProvider" in ort.get_available_providers():
+        _expose_cuda_dlls()
+        # ORT 1.22 loads CUDA/cuDNN from torch on Windows and nvidia packages on Linux.
+        ort.preload_dlls()
         return ["CUDAExecutionProvider", "CPUExecutionProvider"]
     if device == "cuda":
         log.warning("CUDAExecutionProvider недоступен, OCR и детектор номеров работают на CPU")

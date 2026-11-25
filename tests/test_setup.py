@@ -4,8 +4,22 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from packaging.requirements import Requirement
 
 from scripts import setup_env
+
+
+def test_pytorch_runtime_satisfies_repository_dependencies():
+    requirements = Path(__file__).resolve().parents[1] / "requirements.txt"
+    declared = [Requirement(line.split("#", 1)[0].strip())
+                for line in requirements.read_text(encoding="utf-8").splitlines()
+                if line.split("#", 1)[0].strip()]
+    for name, version in (("torch", setup_env.TORCH_VERSION), ("torchvision", setup_env.VISION_VERSION)):
+        requirement = next(item for item in declared if item.name == name)
+        assert requirement.specifier.contains(version + "+cpu")
+        assert requirement.specifier.contains(version + "+cu121")
+    # ORT's cuDNN major must match the CUDA build of PyTorch, which supplies it.
+    assert not any(item.name == "nvidia-cudnn-cu12" for item in declared)
 
 
 @pytest.mark.parametrize("output, code, expected", [
@@ -46,7 +60,8 @@ def test_failed_dependency_install_stops_before_checks_or_database(tmp_path, mon
     assert not (tmp_path / "anpr.yaml").exists()
 
 
-def test_successful_install_keeps_existing_local_configuration(tmp_path, monkeypatch):
+@pytest.mark.parametrize("device", ["cpu", "cu121"])
+def test_successful_install_keeps_existing_local_configuration(tmp_path, monkeypatch, device):
     prepare_install(tmp_path, monkeypatch)
     config = tmp_path / "anpr.yaml"
     config.write_text("source: {uri: private-camera}\n", encoding="utf-8")
@@ -58,10 +73,10 @@ def test_successful_install_keeps_existing_local_configuration(tmp_path, monkeyp
         return SimpleNamespace(stdout="cp312\n", returncode=0)
 
     monkeypatch.setattr(setup_env.subprocess, "run", run)
-    setup_env.install(tmp_path, "cpu")
+    setup_env.install(tmp_path, device)
     assert config.read_bytes() == before
-    assert any("https://download.pytorch.org/whl/cpu" in command for command in calls)
-    assert any("torch==2.2.2+cpu" in command and "torchvision==0.17.2+cpu" in command for command in calls)
+    assert any(f"https://download.pytorch.org/whl/{device}" in command for command in calls)
+    assert any(f"torch==2.5.1+{device}" in command and f"torchvision==0.20.1+{device}" in command for command in calls)
     assert calls[-1][-4:] == ["-m", "anprgate", "db", "init"]
     assert calls[-2][-1] == str(tmp_path / "scripts/fetch_models.py")
 

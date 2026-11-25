@@ -12,7 +12,7 @@
 
 - Windows или Linux с графической сессией для GUI; для headless окно не требуется.
 - Python **3.11 или 3.12, 64-bit**. Установщик проверяет версию и не использует
-  Python 3.13+ для закреплённой пары PyTorch 2.2.2 / torchvision 0.17.2.
+  Python 3.13+ для закреплённой пары PyTorch 2.5.1 / torchvision 0.20.1.
 - Основные веса моделей входят в репозиторий и приходят с обычным `git clone`.
 - NVIDIA необязательна: доступен запуск на CPU.
 
@@ -40,7 +40,8 @@ powershell -ExecutionPolicy Bypass -File .\SETUP.ps1
 останавливается с ненулевым кодом завершения.
 
 Устройство выбирается автоматически: рабочая NVIDIA через `nvidia-smi` — CUDA
-12.1, иначе CPU. Выбор можно задать явно:
+12.1, иначе CPU. CUDA-сборка PyTorch 2.5.1 использует cuDNN 9, совместимый
+с ONNX Runtime 1.22.0. Выбор можно задать явно:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\SETUP.ps1 -Device cpu
@@ -100,6 +101,16 @@ ANPR_PYTHON=python3.12 bash setup.sh --device cu121
 Для выхода из активированного виртуального окружения выполните `deactivate`.
 Активация необязательна, если указывать путь к `.venv/bin/python` или
 `.venv\Scripts\python.exe` явно.
+
+Если установка старой версии завершилась конфликтом `torch 2.2.2` и
+`nvidia-cudnn-cu12`, обновите репозиторий и повторите `bash setup.sh`.
+Скрипт обновит PyTorch и torchvision внутри существующего `.venv`; удалять
+окружение, конфигурацию и базу не нужно. Проверка после установки:
+
+```bash
+.venv/bin/python -m pip check
+.venv/bin/python scripts/env_check.py
+```
 
 ## Проверка на видеофайле
 

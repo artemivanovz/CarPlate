@@ -24,7 +24,7 @@ class Models:
 
 def load_models(cfg: AppConfig) -> Models:
     log.info("Загрузка моделей...")
-    # ONNX Runtime подгружает CUDA/cuDNN только до импорта torch, поэтому номера — первыми.
+    # FastALPR подготавливает общие библиотеки CUDA/cuDNN перед созданием ONNX-сессий.
     plate_reader = build_plate_reader(cfg)
     body_embedder = None
     if cfg.access.body_check:

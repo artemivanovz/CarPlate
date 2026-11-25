@@ -21,7 +21,7 @@ THIRD_PARTY = Path(__file__).resolve().parents[2] / "third_party" / "ru_plate_an
 
 
 def _ensure_rms_norm() -> None:
-    """F.rms_norm появилась в torch 2.4; окружение проекта — torch 2.2 (общие wheel с FaceDARS)."""
+    """Совместимость со старыми окружениями без F.rms_norm (torch < 2.4)."""
     import torch
     import torch.nn.functional as F
 

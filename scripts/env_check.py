@@ -1,11 +1,15 @@
 """Быстрая проверка окружения: версии модулей и доступность CUDA."""
 
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 print("python", sys.version.split()[0], sys.executable)
 
 import torch
 print("torch", torch.__version__, "cuda_available:", torch.cuda.is_available())
+print("cuda_runtime", torch.version.cuda, "cudnn", torch.backends.cudnn.version())
 
 import cv2
 print("cv2", cv2.__version__)
