@@ -94,6 +94,7 @@ def install(project: Path, device: str) -> None:
     local_config = project / "anpr.yaml"
     if not local_config.exists():
         shutil.copyfile(project / "anpr.example.yaml", local_config)
+    run(str(project / "scripts/fetch_models.py"))
     run("-m", "anprgate", "db", "init")
     print("Ready. Start: .venv\\Scripts\\python.exe -m anprgate ui" if os.name == "nt"
           else "Ready. Start: .venv/bin/python -m anprgate ui")

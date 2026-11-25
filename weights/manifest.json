@@ -20,6 +20,7 @@
     },
     {
       "path": "weights/reid/veri_sbs_R50-ibn.pth",
+      "url": "https://github.com/artemivanovz/CarPlate/releases/download/models-v1/veri_sbs_R50-ibn.pth",
       "required": false,
       "size": 198261759,
       "sha256": "57fb9c17d88911ea64390bf5427f43511435e7f88f6eed9dbc969d4b611e53cd"

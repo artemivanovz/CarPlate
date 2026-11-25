@@ -1,4 +1,4 @@
-"""Verify external model files against the committed SHA256 manifest."""
+"""Verify bundled and cached model files against the committed SHA256 manifest."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def main() -> int:
     errors = verify(PROJECT, args.all)
     if errors:
         print("\n".join(errors))
-        print("Restore model files from your external assets. See weights/README.md.")
+        print("Restore bundled files with git restore -- weights. For FastReID run scripts/fetch_models.py --all.")
         return 1
     print("Model files match the SHA256 manifest.")
     return 0

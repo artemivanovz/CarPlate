@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
+import json
 import os
 import re
 import shutil
@@ -13,12 +15,15 @@ from pathlib import Path, PurePosixPath
 
 PROJECT = Path(__file__).resolve().parents[1]
 MAX_BYTES = 5 * 1024 * 1024
+MODEL_MAX_BYTES = 100 * 1024 * 1024
 LFS_HEADER = b"version https://git-lfs.github.com/spec/v1"
 HEAVY_SUFFIXES = {".pt", ".pth", ".onnx", ".engine", ".trt", ".npy", ".npz", ".whl",
                   ".mp4", ".avi", ".mkv", ".mov", ".dll", ".pyd", ".so", ".exe",
                   ".zip", ".7z", ".gz", ".tar"}
 PUBLIC_DATA = {"data/vehicles_example.csv", "data/README.md"}
-PUBLIC_WEIGHTS = {"weights/README.md", "weights/manifest.json"}
+BUNDLED_MODELS = {"weights/yolo26n.pt", "weights/ru_plate/plate_detector.pt",
+                  "weights/ru_plate/plate_recognizer.pt"}
+PUBLIC_WEIGHTS = {"weights/README.md", "weights/manifest.json"} | BUNDLED_MODELS
 URL = re.compile(r"\brtsps?://((?:(?!\b[a-z][a-z0-9+.\-]*://)[^\r\n<>])+)", re.I)
 
 
@@ -34,6 +39,8 @@ def forbidden_path(name: str) -> bool:
         return True
     if path.parts[0] == "weights" and name not in PUBLIC_WEIGHTS:
         return True
+    if name in BUNDLED_MODELS:
+        return False
     if any(part.startswith(".venv") or part in {"venv", "env", "__pycache__", ".pytest_cache"}
            for part in path.parts):
         return True
@@ -48,7 +55,9 @@ def forbidden_path(name: str) -> bool:
 
 def content_problem(name: str, data: bytes) -> str | None:
     if data.startswith(LFS_HEADER):
-        return "Git LFS pointer; this repository stores external assets separately"
+        return "Git LFS pointer; runtime models must be ordinary Git files"
+    if name in BUNDLED_MODELS:
+        return None  # Model blobs are checked by size and SHA256 instead of text heuristics.
     if re.search(rb"(?m)^-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----", data):
         return "private key"
     if name.startswith("tests/"):
@@ -81,6 +90,19 @@ def check(project: Path, max_bytes: int = MAX_BYTES) -> list[str]:
             errors.append(f"{name}: local data or binary asset must stay outside Git")
         else:
             entries.append((name, oid))
+    models = {}
+    names = {name for name, _oid in entries}
+    if "weights/manifest.json" in names:
+        try:
+            manifest = json.loads(git(project, "show", ":weights/manifest.json"))
+            models = {model["path"]: model for model in manifest["models"]}
+            for name, model in models.items():
+                if model["required"] and name not in names:
+                    errors.append(f"{name}: required model is missing from the Git index")
+        except (ValueError, KeyError, TypeError):
+            errors.append("weights/manifest.json: invalid model manifest")
+    elif names & BUNDLED_MODELS:
+        errors.append("weights/manifest.json: missing SHA256 manifest for bundled models")
     if entries:
         request = b"".join(oid + b"\n" for _name, oid in entries)
         metadata = git(project, "cat-file", "--batch-check", data=request).splitlines()
@@ -90,8 +112,9 @@ def check(project: Path, max_bytes: int = MAX_BYTES) -> list[str]:
             size = int(raw_size)
             if kind != b"blob":
                 errors.append(f"{name}: unsupported Git object")
-            elif size > max_bytes:
-                errors.append(f"{name}: exceeds {max_bytes} bytes; store the asset separately")
+            elif size > (MODEL_MAX_BYTES if name in BUNDLED_MODELS else max_bytes):
+                limit = MODEL_MAX_BYTES if name in BUNDLED_MODELS else max_bytes
+                errors.append(f"{name}: exceeds {limit} bytes")
             else:
                 readable.append((name, oid))
         if readable:
@@ -104,6 +127,10 @@ def check(project: Path, max_bytes: int = MAX_BYTES) -> list[str]:
                 problem = content_problem(name, content)
                 if problem:
                     errors.append(f"{name}: {problem}")
+                elif name in BUNDLED_MODELS:
+                    model = models.get(name, {})
+                    if len(content) != model.get("size") or hashlib.sha256(content).hexdigest() != model.get("sha256"):
+                        errors.append(f"{name}: model size/SHA256 does not match the staged manifest")
     return errors
 
 
@@ -135,7 +162,7 @@ def main() -> int:
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print("Git index is clean: no local assets, oversized files, credentials or LFS pointers detected.")
+    print("Git index is clean: approved models verified; no private data, unapproved binaries or LFS pointers detected.")
     return 0
 
 

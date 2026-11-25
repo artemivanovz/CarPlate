@@ -5,7 +5,7 @@ import subprocess
 import pytest
 
 from scripts.check_assets import verify
-from scripts.check_repository import check, install_hook
+from scripts.check_repository import BUNDLED_MODELS, check, install_hook
 
 
 def git(project, *args):
@@ -52,9 +52,45 @@ def test_public_config_and_manifests_can_be_committed(repository):
     for filename in ("anpr.example.yaml", "weights/manifest.json", "data/vehicles_example.csv"):
         target = repository / filename
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text("public example\n", encoding="utf-8")
+        target.write_text(json.dumps({"models": []}) if filename.endswith("manifest.json") else "public example\n", encoding="utf-8")
     git(repository, "add", ".")
     assert check(repository) == []
+
+
+def stage_bundled_models(repository, content=b"verified model"):
+    models = []
+    for name in sorted(BUNDLED_MODELS):
+        target = repository / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+        models.append({"path": name, "required": True, "size": len(content),
+                       "sha256": hashlib.sha256(content).hexdigest()})
+    (repository / "weights/manifest.json").write_text(json.dumps({"models": models}), encoding="utf-8")
+    git(repository, "add", ".")
+
+
+def test_approved_model_can_exceed_source_limit_when_checksum_matches(repository):
+    stage_bundled_models(repository, content=b"model data" * 1024)
+    assert check(repository, max_bytes=4096) == []
+
+
+def test_changed_or_missing_bundled_model_is_rejected(repository):
+    stage_bundled_models(repository)
+    name = sorted(BUNDLED_MODELS)[0]
+    (repository / name).write_bytes(b"tampered model")
+    git(repository, "add", "--", name)
+    assert any("SHA256" in error for error in check(repository))
+    git(repository, "rm", "-f", "--", name)
+    assert any("missing from the Git index" in error for error in check(repository))
+
+
+def test_optional_large_model_stays_outside_git(repository):
+    name = "weights/reid/veri_sbs_R50-ibn.pth"
+    target = repository / name
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"optional model")
+    git(repository, "add", "-f", "--", name)
+    assert any(name in error for error in check(repository))
 
 
 def test_hook_install_preserves_an_unrelated_existing_hook(repository):

@@ -10,3 +10,8 @@
 .githooks/* text eol=lf
 *.ps1 text eol=crlf
 *.bat text eol=crlf
+
+# Ordinary Git binaries, including when a global LFS filter is configured
+weights/yolo26n.pt binary -filter
+weights/ru_plate/plate_detector.pt binary -filter
+weights/ru_plate/plate_recognizer.pt binary -filter

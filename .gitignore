@@ -39,7 +39,7 @@ cam*.url
 *.db-*
 *.log
 
-# Models and binaries are restored separately; Git LFS is not used
+# Keep unapproved models and binaries local; approved runtime weights are listed below
 /weights/*
 !/weights/README.md
 !/weights/manifest.json
@@ -63,6 +63,13 @@ cam*.url
 *.7z
 *.tar
 *.tar.gz
+
+# Runtime models travel with a normal clone, without Git LFS
+!/weights/yolo26n.pt
+!/weights/ru_plate/
+/weights/ru_plate/*
+!/weights/ru_plate/plate_detector.pt
+!/weights/ru_plate/plate_recognizer.pt
 
 # Editor, local diagnostics and OS files
 .idea/

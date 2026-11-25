@@ -63,6 +63,7 @@ def test_successful_install_keeps_existing_local_configuration(tmp_path, monkeyp
     assert any("https://download.pytorch.org/whl/cpu" in command for command in calls)
     assert any("torch==2.2.2+cpu" in command and "torchvision==0.17.2+cpu" in command for command in calls)
     assert calls[-1][-4:] == ["-m", "anprgate", "db", "init"]
+    assert calls[-2][-1] == str(tmp_path / "scripts/fetch_models.py")
 
 
 def test_new_install_copies_example_configuration(tmp_path, monkeypatch):

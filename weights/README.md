@@ -1,40 +1,49 @@
 # Веса моделей ANPR Gate
 
-Веса хранятся отдельно от Git. Git LFS не используется. Существующие файлы на
-машине оператора сохраняются; правила исключения не удаляют их с диска.
+Основные модели входят в обычный Git-репозиторий. Git LFS не используется,
+отдельно передавать веса после `git clone` или `git pull` не нужно:
 
-Для обычной конфигурации нужны:
+| Файл | Назначение |
+|---|---|
+| `weights/yolo26n.pt` | Детектор транспортных средств |
+| `weights/ru_plate/plate_detector.pt` | Детектор российских номеров |
+| `weights/ru_plate/plate_recognizer.pt` | OCR российских номеров |
 
-```text
-weights/yolo26n.pt
-weights/ru_plate/plate_detector.pt
-weights/ru_plate/plate_recognizer.pt
-```
-
-Для необязательного `models.body.backend: fastreid` дополнительно нужен
-`weights/reid/veri_sbs_R50-ibn.pth`. Backend `shape` не требует своих весов.
-
-После клонирования перенесите эти файлы из проверенной поставки, сохраняя
-структуру каталогов. Для Windows в PowerShell:
-
-```powershell
-Copy-Item -Path 'D:\CarPlate-assets\weights\*' -Destination '.\weights' -Recurse
-.\.venv\Scripts\python.exe scripts\check_assets.py
-```
-
-Для Linux:
+Это весь набор весов для стандартной конфигурации `ru_anpr + shape`.
+Геометрический backend `shape` не использует отдельную нейросеть кузова.
+`manifest.json` закрепляет размеры и SHA256. Установщик проверяет модели;
+проверку также можно выполнить отдельно:
 
 ```bash
-cp -r /mnt/CarPlate-assets/weights/. ./weights/
 .venv/bin/python scripts/check_assets.py
 ```
 
-Пути `D:\CarPlate-assets` и `/mnt/CarPlate-assets` замените на каталог вашей
-поставки. `manifest.json` фиксирует размеры и SHA256 весов, с которыми проверялся
-проект. Проверка не загружает и не заменяет файлы. Флаг `--all` дополнительно
-требует FastReID. При осознанной замене моделей обновите манифест и проверки.
+Если обязательный файл случайно удалён, восстановите его командой
+`git restore -- weights`, затем повторите проверку.
+
+## Необязательный FastReID
+
+`weights/reid/veri_sbs_R50-ibn.pth` весит 198 МБ и превышает ограничение обычного
+файла GitHub в 100 МиБ. Поэтому он опубликован как файл
+[релиза models-v1](https://github.com/artemivanovz/CarPlate/releases/tag/models-v1).
+
+При выборе `models.body.backend: fastreid` стандартные веса автоматически
+скачиваются во время установки или первой загрузки модели. Результат
+проверяется по размеру и SHA256 и затем сохраняется в локальном кэше `weights/reid/`.
+Переносить файлы вручную не требуется. Для подготовки заранее:
+
+```bash
+.venv/bin/python scripts/fetch_models.py --all
+.venv/bin/python scripts/check_assets.py --all
+```
+
+На Windows используйте `.venv/Scripts/python.exe` вместо `.venv/bin/python`.
+Первое скачивание требует доступа к GitHub; последующие запуски используют
+локальный файл. Неполная или неверная загрузка не становится рабочей моделью.
+Существующий файл с другим SHA256 автоматически не перезаписывается.
+
+Если в конфигурации задан собственный путь к модели, приложение использует
+этот файл и не заменяет его стандартными весами.
 
 Происхождение русского OCR описано в
-[SOURCE.md](../third_party/ru_plate_anpr/SOURCE.md). При отсутствии YOLO26n
-Ultralytics может скачать веса по имени; для воспроизводимого запуска
-восстанавливайте проверенную поставку целиком.
+[SOURCE.md](../third_party/ru_plate_anpr/SOURCE.md).

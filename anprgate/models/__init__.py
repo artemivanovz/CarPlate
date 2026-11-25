@@ -37,7 +37,11 @@ def build_body_embedder(cfg: AppConfig):
 
         weights = cfg.resolve(cfg.models.body.weights)
         if not weights.exists():
-            raise FileNotFoundError(f"Нет весов сверки кузова: {weights}")
+            from ..assets import FASTREID_MODEL, PROJECT, ensure_model
+
+            if weights.resolve() != (PROJECT / FASTREID_MODEL).resolve():
+                raise FileNotFoundError(f"Нет пользовательских весов сверки кузова: {weights}")
+            weights = ensure_model(FASTREID_MODEL)
         return FastReIDBodyEmbedder(cfg.models.body, str(weights))
     raise ValueError(f"Неизвестный backend сверки кузова: {backend}")
 
