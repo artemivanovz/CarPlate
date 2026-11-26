@@ -190,7 +190,7 @@ class PlateRecognizer:
             "cuda" if torch.cuda.is_available() else "cpu"
         )
         checkpoint: Dict = torch.load(
-            path, map_location=target, weights_only=False
+            path, map_location=target, weights_only=True
         )
         config: Dict = checkpoint.get("config", {})
         model: PlateOCR = PlateOCR(

@@ -1,6 +1,6 @@
 # SETUP.ps1/setup.sh сначала ставят выбранную CPU/CUDA сборку из официального индекса.
-torch==2.5.1
-torchvision==0.20.1
+torch==2.14.1
+torchvision==0.29.1
 numpy>=1.26,<2
 ultralytics>=8.4,<9
 fast-alpr[onnx-gpu]>=0.4

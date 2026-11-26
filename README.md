@@ -11,8 +11,8 @@
 ## Что нужно для запуска
 
 - Windows или Linux с графической сессией для GUI; для headless окно не требуется.
-- Python **3.11 или 3.12, 64-bit**. Установщик проверяет версию и не использует
-  Python 3.13+ для закреплённой пары PyTorch 2.5.1 / torchvision 0.20.1.
+- Python **3.11 или 3.12, 64-bit** — проверенные установщиком версии.
+  Закреплены PyTorch 2.14.1 / torchvision 0.29.1.
 - Основные веса моделей входят в репозиторий и приходят с обычным `git clone`.
 - NVIDIA необязательна: доступен запуск на CPU.
 
@@ -40,13 +40,14 @@ powershell -ExecutionPolicy Bypass -File .\SETUP.ps1
 останавливается с ненулевым кодом завершения.
 
 Устройство выбирается автоматически: рабочая NVIDIA через `nvidia-smi` — CUDA
-12.1, иначе CPU. CUDA-сборка PyTorch 2.5.1 использует cuDNN 9, совместимый
-с ONNX Runtime 1.22.0. Выбор можно задать явно:
+12.6, иначе CPU. CUDA-сборка PyTorch 2.14.1 использует cuDNN 9, совместимый
+с ONNX Runtime 1.22.0. Установщик проверяет CUDA вычислением на GPU; при ошибке
+нужно обновить драйвер NVIDIA или выбрать CPU. Выбор можно задать явно:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\SETUP.ps1 -Device cpu
-# Или сборка CUDA 12.1:
-powershell -ExecutionPolicy Bypass -File .\SETUP.ps1 -Device cu121
+# Или сборка CUDA 12.6:
+powershell -ExecutionPolicy Bypass -File .\SETUP.ps1 -Device cu126
 ```
 
 Если нужен определённый интерпретатор:
@@ -90,7 +91,7 @@ Python версии 3.13 или новее, сначала установите 
 
 ```bash
 bash setup.sh --device cpu
-ANPR_PYTHON=python3.12 bash setup.sh --device cu121
+ANPR_PYTHON=python3.12 bash setup.sh --device cu126
 ```
 
 После установки окно открывается также через `bash start.sh`. При SSH без
@@ -111,6 +112,17 @@ ANPR_PYTHON=python3.12 bash setup.sh --device cu121
 .venv/bin/python -m pip check
 .venv/bin/python scripts/env_check.py
 ```
+
+При обновлении со старого окружения (PyTorch ниже 2.13) повторите установку после `git pull --ff-only`.
+Эти версии затронуты алертами безопасности; одного обновления исходников недостаточно.
+Готовые CUDA-сборки нового runtime используют `cu126`, прежний параметр `cu121`
+больше не поддерживается. Повторная установка сохраняет локальную конфигурацию и БД.
+
+Штатные `.pt/.pth` проверяются по размеру и SHA256 перед загрузкой. OCR и FastReID
+загружаются с `weights_only=True`, без повторной попытки через небезопасный pickle.
+Веса YOLO содержат Python-объекты и загружаются Ultralytics: для поставляемых файлов
+проверяется манифест. Собственные веса из произвольных путей используйте только
+из доверенных источников; на эти пути штатный манифест не распространяется.
 
 ## Проверка на видеофайле
 

@@ -13,6 +13,17 @@ from urllib.parse import urlsplit
 
 PROJECT = Path(__file__).resolve().parents[1]
 FASTREID_MODEL = "weights/reid/veri_sbs_R50-ibn.pth"
+STANDARD_MODELS = ("weights/yolo26n.pt", "weights/ru_plate/plate_detector.pt",
+                   "weights/ru_plate/plate_recognizer.pt", FASTREID_MODEL)
+
+
+def verified_model_path(path: Path) -> Path:
+    """Verify standard models before deserialization; keep explicit custom paths."""
+    target = path.resolve()
+    for name in STANDARD_MODELS:
+        if target == (PROJECT / name).resolve():
+            return ensure_model(name)
+    return target
 
 
 def _matches(path: Path, model: dict) -> bool:
@@ -25,9 +36,9 @@ def _matches(path: Path, model: dict) -> bool:
     return digest.hexdigest() == model["sha256"]
 
 
-def ensure_model(name: str, project: Path = PROJECT) -> Path:
+def ensure_model(name: str, project: Path | None = None) -> Path:
     """Keep existing files intact; verify a download before making it available."""
-    root = project.resolve()
+    root = (project or PROJECT).resolve()
     target = (root / name).resolve()
     if root not in target.parents:
         raise ValueError("Model path must stay inside the project")

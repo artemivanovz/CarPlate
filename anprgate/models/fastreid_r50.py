@@ -151,7 +151,7 @@ class FastReIDSBS(nn.Module):
 
 
 def load_fastreid(path: str, device: str) -> FastReIDSBS:
-    state = torch.load(path, map_location="cpu")
+    state = torch.load(path, map_location="cpu", weights_only=True)
     state = state.get("model", state)
     # Классификатор обучающих ID (575 машин VeRi) и счётчик старого BNNeck на инференсе не нужны.
     state = {k: v for k, v in state.items()

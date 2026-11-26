@@ -13,8 +13,9 @@ import venv
 from pathlib import Path
 
 SUPPORTED = {(3, 11), (3, 12)}
-TORCH_VERSION = "2.5.1"
-VISION_VERSION = "0.20.1"
+TORCH_VERSION = "2.14.1"
+VISION_VERSION = "0.29.1"
+CUDA_BUILD = "cu126"
 PROJECT = Path(__file__).resolve().parents[1]
 
 
@@ -55,7 +56,7 @@ def resolve_device(device: str) -> str:
         try:
             probe = subprocess.run([executable, "-L"], capture_output=True, timeout=10, check=False)
             if probe.returncode == 0 and b"GPU" in probe.stdout:
-                return "cu121"
+                return CUDA_BUILD
         except (OSError, subprocess.TimeoutExpired):
             pass
     return "cpu"
@@ -83,9 +84,9 @@ def install(project: Path, device: str) -> None:
         [str(python), "-c", "import sys; print('cp%d%d' % sys.version_info[:2])"],
         capture_output=True, text=True, check=True,
     ).stdout.strip()
-    torch_wheel = wheel_dir / f"torch-{TORCH_VERSION}+cu121-{tag}-{tag}-win_amd64.whl"
-    vision_wheel = wheel_dir / f"torchvision-{VISION_VERSION}+cu121-{tag}-{tag}-win_amd64.whl"
-    if os.name == "nt" and selected == "cu121" and torch_wheel.is_file() and vision_wheel.is_file():
+    torch_wheel = wheel_dir / f"torch-{TORCH_VERSION}+{CUDA_BUILD}-{tag}-{tag}-win_amd64.whl"
+    vision_wheel = wheel_dir / f"torchvision-{VISION_VERSION}+{CUDA_BUILD}-{tag}-{tag}-win_amd64.whl"
+    if os.name == "nt" and selected == CUDA_BUILD and torch_wheel.is_file() and vision_wheel.is_file():
         run("-m", "pip", "install", str(torch_wheel), str(vision_wheel))
     else:
         run("-m", "pip", "install", f"torch=={TORCH_VERSION}+{selected}", f"torchvision=={VISION_VERSION}+{selected}",
@@ -93,6 +94,11 @@ def install(project: Path, device: str) -> None:
     run("-m", "pip", "install", "-r", str(project / "requirements.txt"))
     run("-m", "pip", "check")
     run("-c", "import torch, torchvision, cv2, yaml, av, ultralytics; from PyQt6 import QtWidgets; print('Runtime imports OK')")
+    if selected == CUDA_BUILD:
+        run("-c", "import torch; "
+            "assert torch.cuda.is_available(), 'CUDA 12.6 is unavailable: update the NVIDIA driver or rerun setup with --device cpu'; "
+            "x = torch.ones(8, device='cuda'); "
+            "assert float((x * 2).sum()) == 16; torch.cuda.synchronize(); print('CUDA runtime OK')")
     local_config = project / "anpr.yaml"
     if not local_config.exists():
         shutil.copyfile(project / "anpr.example.yaml", local_config)
@@ -104,7 +110,7 @@ def install(project: Path, device: str) -> None:
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--device", choices=("auto", "cpu", "cu121"), default="auto")
+    parser.add_argument("--device", choices=("auto", "cpu", CUDA_BUILD), default="auto")
     args = parser.parse_args(argv)
     try:
         if sys.version_info[:2] not in SUPPORTED or struct.calcsize("P") != 8:

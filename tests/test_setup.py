@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from packaging.requirements import Requirement
+from packaging.version import Version
 
 from scripts import setup_env
 
@@ -17,9 +18,14 @@ def test_pytorch_runtime_satisfies_repository_dependencies():
     for name, version in (("torch", setup_env.TORCH_VERSION), ("torchvision", setup_env.VISION_VERSION)):
         requirement = next(item for item in declared if item.name == name)
         assert requirement.specifier.contains(version + "+cpu")
-        assert requirement.specifier.contains(version + "+cu121")
+        assert requirement.specifier.contains(version + "+cu126")
     # ORT's cuDNN major must match the CUDA build of PyTorch, which supplies it.
     assert not any(item.name == "nvidia-cudnn-cu12" for item in declared)
+
+
+def test_runtime_does_not_regress_below_torch_security_fixes():
+    # CVE-2025-3000 is the newest minimum among Dependabot alerts #1–#10.
+    assert Version(setup_env.TORCH_VERSION) >= Version("2.13.0")
 
 
 @pytest.mark.parametrize("output, code, expected", [
@@ -60,7 +66,7 @@ def test_failed_dependency_install_stops_before_checks_or_database(tmp_path, mon
     assert not (tmp_path / "anpr.yaml").exists()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cu121"])
+@pytest.mark.parametrize("device", ["cpu", "cu126"])
 def test_successful_install_keeps_existing_local_configuration(tmp_path, monkeypatch, device):
     prepare_install(tmp_path, monkeypatch)
     config = tmp_path / "anpr.yaml"
@@ -76,7 +82,8 @@ def test_successful_install_keeps_existing_local_configuration(tmp_path, monkeyp
     setup_env.install(tmp_path, device)
     assert config.read_bytes() == before
     assert any(f"https://download.pytorch.org/whl/{device}" in command for command in calls)
-    assert any(f"torch==2.5.1+{device}" in command and f"torchvision==0.20.1+{device}" in command for command in calls)
+    assert any(f"torch==2.14.1+{device}" in command and f"torchvision==0.29.1+{device}" in command for command in calls)
+    assert any("CUDA runtime OK" in " ".join(command) for command in calls) == (device == "cu126")
     assert calls[-1][-4:] == ["-m", "anprgate", "db", "init"]
     assert calls[-2][-1] == str(tmp_path / "scripts/fetch_models.py")
 
@@ -89,12 +96,30 @@ def test_new_install_copies_example_configuration(tmp_path, monkeypatch):
     assert (tmp_path / "anpr.yaml").read_bytes() == (tmp_path / "anpr.example.yaml").read_bytes()
 
 
+def test_failed_cuda_probe_stops_before_configuration_or_database_creation(tmp_path, monkeypatch):
+    prepare_install(tmp_path, monkeypatch)
+    calls = []
+
+    def run(command, **kwargs):
+        calls.append(command)
+        if any("CUDA runtime OK" in argument for argument in command):
+            raise subprocess.CalledProcessError(7, command)
+        return SimpleNamespace(stdout="cp312\n", returncode=0)
+
+    monkeypatch.setattr(setup_env.subprocess, "run", run)
+    with pytest.raises(subprocess.CalledProcessError):
+        setup_env.install(tmp_path, "cu126")
+    assert not (tmp_path / "anpr.yaml").exists()
+    assert not any("init" in command for command in calls)
+    assert not any(str(tmp_path / "scripts/fetch_models.py") in command for command in calls)
+
+
 def test_auto_device_falls_back_to_cpu_on_broken_driver(monkeypatch):
     monkeypatch.setattr(setup_env.shutil, "which", lambda name: "nvidia-smi")
     monkeypatch.setattr(setup_env.subprocess, "run", lambda *a, **kw:
                         SimpleNamespace(stdout=b"", returncode=1))
     assert setup_env.resolve_device("auto") == "cpu"
-    assert setup_env.resolve_device("cu121") == "cu121"
+    assert setup_env.resolve_device("cu126") == "cu126"
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows PowerShell entry point")

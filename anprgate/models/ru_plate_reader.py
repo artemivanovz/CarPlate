@@ -39,6 +39,10 @@ def _ensure_rms_norm() -> None:
 
 class RuPlateReader:
     def __init__(self, cfg: PlateModelConfig, weights_dir: Path) -> None:
+        from ..assets import verified_model_path
+
+        verified_model_path(weights_dir / "plate_detector.pt")
+        verified_model_path(weights_dir / "plate_recognizer.pt")
         _ensure_rms_norm()
         if str(THIRD_PARTY) not in sys.path:
             sys.path.insert(0, str(THIRD_PARTY))

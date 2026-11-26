@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 
 def _expose_cuda_dlls() -> None:
-    """На Windows даём ONNX Runtime доступ к DLL CUDA/cuDNN 9 из torch 2.5.1.
+    """На Windows даём ONNX Runtime доступ к DLL CUDA/cuDNN 9 из torch.
     Также поддерживаем уже установленные DLL из nvidia-cudnn-cu12."""
     import importlib.util
 

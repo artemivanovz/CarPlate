@@ -7,9 +7,10 @@ from .base import ColorEstimator, PlateReader, VehicleDetector
 
 
 def build_vehicle_detector(cfg: AppConfig) -> VehicleDetector:
+    from ..assets import verified_model_path
     from .vehicle_detector import UltralyticsVehicleDetector
 
-    local = cfg.resolve(cfg.models.vehicle.weights)
+    local = verified_model_path(cfg.resolve(cfg.models.vehicle.weights))
     return UltralyticsVehicleDetector(cfg.models.vehicle, str(local) if local.exists() else local.name)
 
 
@@ -33,15 +34,12 @@ def build_body_embedder(cfg: AppConfig):
 
         return ShapeBodyEmbedder(cfg.models.body)
     if backend == "fastreid":
+        from ..assets import verified_model_path
         from .body import FastReIDBodyEmbedder
 
-        weights = cfg.resolve(cfg.models.body.weights)
-        if not weights.exists():
-            from ..assets import FASTREID_MODEL, PROJECT, ensure_model
-
-            if weights.resolve() != (PROJECT / FASTREID_MODEL).resolve():
-                raise FileNotFoundError(f"Нет пользовательских весов сверки кузова: {weights}")
-            weights = ensure_model(FASTREID_MODEL)
+        weights = verified_model_path(cfg.resolve(cfg.models.body.weights))
+        if not weights.is_file():
+            raise FileNotFoundError(f"Нет пользовательских весов сверки кузова: {weights}")
         return FastReIDBodyEmbedder(cfg.models.body, str(weights))
     raise ValueError(f"Неизвестный backend сверки кузова: {backend}")
 

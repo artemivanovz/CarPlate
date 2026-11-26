@@ -30,7 +30,7 @@ class PathsConfig:
 
 @dataclass
 class VehicleModelConfig:
-    weights: str = "yolo26n.pt"
+    weights: str = "weights/yolo26n.pt"
     device: str = "auto"
     conf: float = 0.35
     imgsz: int = 640

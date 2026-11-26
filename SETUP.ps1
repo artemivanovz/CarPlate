@@ -1,6 +1,6 @@
 ﻿# Создание окружения ANPR-Gate (Windows, Python 3.11/3.12 x64).
 param(
-    [ValidateSet("auto", "cpu", "cu121")][string]$Device = "auto",
+    [ValidateSet("auto", "cpu", "cu126")][string]$Device = "auto",
     [string]$Python = ""
 )
 $ErrorActionPreference = "Stop"
